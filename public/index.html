@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>TraceAudit · 轨迹真实性审核</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand" aria-label="TraceAudit">
+      <span class="brand-mark">TA</span>
+      <span class="brand-name">TraceAudit</span>
+      <span class="brand-subtitle">轨迹真实性审核</span>
+    </div>
+    <div class="topbar-actions">
+      <span id="apiStatus" class="status-pill status-off">API 未配置</span>
+      <button id="settingsButton" class="button button-secondary" type="button">API 设置</button>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="control-panel" aria-label="审核输入">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">审核批次</p>
+          <h1>轨迹文件</h1>
+        </div>
+        <span id="fileCount" class="counter">0 / 1</span>
+      </div>
+
+      <label id="dropZone" class="drop-zone" for="fileInput">
+        <span class="drop-symbol">+</span>
+        <strong>拖入 JSONL 文件</strong>
+        <span>或点击选择单个轨迹文件</span>
+        <input id="fileInput" type="file" accept=".jsonl,.json" hidden>
+      </label>
+
+      <div id="fileList" class="file-list" aria-live="polite">
+        <p class="empty-list">尚未添加文件</p>
+      </div>
+
+      <div class="control-summary">
+        <div class="summary-row">
+          <span>审核模型</span>
+          <strong id="modelLabel">gpt-5.4-mini</strong>
+        </div>
+        <div class="summary-row">
+          <span>推理强度</span>
+          <strong id="effortLabel">低</strong>
+        </div>
+        <div class="summary-row">
+          <span>接口协议</span>
+          <strong id="apiModeLabel">Responses API</strong>
+        </div>
+        <div class="summary-row">
+          <span>证据策略</span>
+          <strong>结构检查 + 模型复核</strong>
+        </div>
+      </div>
+
+      <div class="control-actions">
+        <button id="auditButton" class="button button-primary button-wide" type="button" disabled>开始机审</button>
+        <button id="cancelButton" class="button button-secondary button-wide hidden" type="button">取消审核</button>
+      </div>
+      <p class="privacy-note">API Key 仅保存在当前浏览器会话，并由本机服务转发。本工具不会把 Key 写入文件。</p>
+    </aside>
+
+    <main class="report-workspace">
+      <section id="emptyState" class="empty-state">
+        <div class="empty-state-mark">JSONL</div>
+        <h2>等待审核材料</h2>
+        <p>添加轨迹后将先执行结构预检。</p>
+      </section>
+
+      <section id="preflightSection" class="preflight-section hidden" aria-labelledby="preflightTitle">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">本地确定性检查</p>
+            <h2 id="preflightTitle">轨迹概览</h2>
+          </div>
+          <span id="preflightBadge" class="status-pill status-neutral">等待检查</span>
+        </div>
+        <div id="preflightMetrics" class="metric-grid"></div>
+        <div id="preflightWarnings" class="warning-strip hidden"></div>
+      </section>
+
+      <section id="loadingSection" class="loading-section hidden" aria-live="polite">
+        <div class="loading-bar"><span></span></div>
+        <div>
+          <h2>正在进行证据审核</h2>
+          <p id="loadingText">正在整理结构指标与高价值证据片段...</p>
+        </div>
+      </section>
+
+      <section id="auditErrorSection" class="audit-error hidden" aria-live="assertive">
+        <div class="error-heading">
+          <div>
+            <p class="eyebrow">机审未完成</p>
+            <h2 id="auditErrorTitle">模型调用失败</h2>
+          </div>
+          <span class="status-pill status-bad">未生成报告</span>
+        </div>
+        <p id="auditErrorMessage"></p>
+        <p id="auditErrorHint" class="error-hint"></p>
+        <div class="error-actions">
+          <button id="errorSettingsButton" class="button button-secondary" type="button">检查 API 设置</button>
+          <button id="retryButton" class="button button-primary" type="button">重新机审</button>
+        </div>
+      </section>
+
+      <article id="reportSection" class="report hidden" aria-labelledby="reportTitle">
+        <div class="report-toolbar no-print">
+          <span id="reportTimestamp"></span>
+          <div>
+            <button id="downloadButton" class="button button-secondary" type="button">下载 JSON</button>
+            <button id="printButton" class="button button-secondary" type="button">打印报告</button>
+          </div>
+        </div>
+
+        <section class="report-hero">
+          <div id="scoreRing" class="score-ring" role="img" aria-label="综合得分">
+            <div>
+              <strong id="overallScore">--</strong>
+              <span>/ 100</span>
+            </div>
+          </div>
+          <div class="report-intro">
+            <div class="verdict-line">
+              <span id="verdictBadge" class="verdict-badge">待判定</span>
+              <span id="reportModel"></span>
+            </div>
+            <h1 id="reportTitle">轨迹真实性审核报告</h1>
+            <p id="reportSummary"></p>
+          </div>
+        </section>
+
+        <section class="report-band" aria-labelledby="dimensionTitle">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">加权评分</p>
+              <h2 id="dimensionTitle">分项结论</h2>
+            </div>
+          </div>
+          <div id="dimensionGrid" class="dimension-grid"></div>
+        </section>
+
+        <section class="report-split">
+          <div class="report-block">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">外部信号</p>
+                <h2>用户验证</h2>
+              </div>
+              <span id="userValidationBadge" class="status-pill status-neutral">未判定</span>
+            </div>
+            <div id="userValidationContent"></div>
+          </div>
+          <div class="report-block">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">证据缺口</p>
+                <h2>未充分支持的声明</h2>
+              </div>
+            </div>
+            <div id="unsupportedClaims"></div>
+          </div>
+        </section>
+
+        <section class="report-split">
+          <div class="report-block">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">重点</p>
+                <h2>关键发现</h2>
+              </div>
+            </div>
+            <ul id="keyFindings" class="finding-list"></ul>
+          </div>
+          <div class="report-block">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">边界</p>
+                <h2>审核局限</h2>
+              </div>
+            </div>
+            <ul id="limitations" class="finding-list muted-list"></ul>
+          </div>
+        </section>
+
+        <section class="report-band trace-facts" aria-labelledby="factsTitle">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">原始统计</p>
+              <h2 id="factsTitle">轨迹事实</h2>
+            </div>
+          </div>
+          <div id="traceFacts" class="facts-table"></div>
+        </section>
+      </article>
+    </main>
+  </div>
+
+  <dialog id="settingsDialog" class="settings-dialog">
+    <form id="settingsForm" method="dialog">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">OpenAI</p>
+          <h2>机审配置</h2>
+        </div>
+        <button id="closeSettings" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+
+      <label class="field">
+        <span>API Key</span>
+        <input id="apiKeyInput" type="password" autocomplete="off" placeholder="sk-..." required>
+        <small>仅用于当前浏览器会话，不会写入服务端配置或日志。</small>
+      </label>
+
+      <label class="field">
+        <span>API Base URL</span>
+        <input id="baseUrlInput" type="url" spellcheck="false" placeholder="https://api.openai.com/v1" required>
+        <small>中转站请填写其 OpenAI 兼容地址，通常以 /v1 结尾，不要填写具体接口路径。</small>
+      </label>
+
+      <label class="field">
+        <span>模型</span>
+        <select id="modelSelect">
+          <option value="gpt-5.4-mini">gpt-5.4-mini · 默认审核模型</option>
+          <option value="custom">自定义模型</option>
+        </select>
+      </label>
+
+      <label id="customModelField" class="field hidden">
+        <span>自定义模型名称</span>
+        <input id="customModelInput" type="text" placeholder="model-id" pattern="[a-zA-Z0-9._:-]{2,100}">
+      </label>
+
+      <div class="model-note">
+        <strong>默认建议</strong>
+        <p>固定使用 Responses API 与低推理强度。单轨迹会先在本地压缩为高优先级证据包，网关超时时自动缩减后重试。</p>
+      </div>
+
+      <div class="dialog-actions">
+        <button id="clearKeyButton" class="button button-danger" type="button">清除 Key</button>
+        <button class="button button-primary" type="submit">保存配置</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
