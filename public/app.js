@@ -34,6 +34,8 @@ const elements = {
   clearKeyButton: $('#clearKeyButton'), overallScore: $('#overallScore'), scoreRing: $('#scoreRing'),
   verdictBadge: $('#verdictBadge'), reportTitle: $('#reportTitle'), reportSummary: $('#reportSummary'),
   reportTimestamp: $('#reportTimestamp'), reportModel: $('#reportModel'), dimensionGrid: $('#dimensionGrid'),
+  resultStatusBadge: $('#resultStatusBadge'), resultAssessment: $('#resultAssessment'),
+  majorFlawBadge: $('#majorFlawBadge'), majorFlaws: $('#majorFlaws'),
   userValidationBadge: $('#userValidationBadge'), userValidationContent: $('#userValidationContent'),
   unsupportedClaims: $('#unsupportedClaims'), keyFindings: $('#keyFindings'), limitations: $('#limitations'),
   traceFacts: $('#traceFacts'), downloadButton: $('#downloadButton'), printButton: $('#printButton'), toast: $('#toast')
@@ -54,6 +56,16 @@ function formatBytes(bytes) {
   const units = ['B', 'KB', 'MB', 'GB'];
   const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   return `${(bytes / (1024 ** index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function formatTraceFormat(format) {
+  return ({
+    claude_code: 'Claude Code',
+    codex_rollout: 'Codex CLI rollout',
+    codex_exec_json: 'Codex exec --json',
+    mixed: '混合格式',
+    unknown: '未识别'
+  })[format] || format;
 }
 
 function create(tag, className, text) {
@@ -159,6 +171,7 @@ function renderPreflight(summary) {
   elements.preflightSection.classList.remove('hidden');
   clear(elements.preflightMetrics);
   [
+    ['轨迹格式', formatTraceFormat(summary.detectedFormat)],
     ['结构分', summary.structuralScore],
     ['有效事件', summary.validEvents.toLocaleString()],
     ['工具调用 / 结果', `${summary.toolCallCount} / ${summary.toolResultCount}`],
@@ -166,16 +179,17 @@ function renderPreflight(summary) {
     ['文件数', summary.files.length],
     ['轨迹体积', formatBytes(summary.totalBytes)],
     ['修改路径', summary.uniqueModifiedPaths],
-    ['构建 / 测试信号', summary.buildSignalCount]
+    ['验证调用 / 失败', `${summary.verificationCallCount} / ${summary.verificationFailureCount}`]
   ].forEach(([label, value]) => elements.preflightMetrics.append(metric(label, value)));
 
+  const compatibilityIssue = summary.formatSupport !== 'full';
   const issueCount = summary.invalidLineCount + summary.unmatchedCallCount + summary.unmatchedResultCount
-    + summary.cycleCount + summary.duplicateEventIdCount + summary.invalidTimestampCount;
+    + summary.cycleCount + summary.duplicateEventIdCount + summary.invalidTimestampCount + (compatibilityIssue ? 1 : 0);
   elements.preflightBadge.textContent = issueCount ? `${issueCount} 项结构异常` : '结构检查通过';
   elements.preflightBadge.className = `status-pill ${issueCount ? 'status-warn' : 'status-good'}`;
   elements.preflightWarnings.classList.toggle('hidden', issueCount === 0);
   elements.preflightWarnings.textContent = issueCount
-    ? `发现无效行 ${summary.invalidLineCount}、孤立调用 ${summary.unmatchedCallCount}、孤立结果 ${summary.unmatchedResultCount}、重复事件 ${summary.duplicateEventIdCount}、循环父链 ${summary.cycleCount}、无效时间戳 ${summary.invalidTimestampCount}。模型审核会进一步判断影响。`
+    ? `格式 ${formatTraceFormat(summary.detectedFormat)}；发现无效行 ${summary.invalidLineCount}、孤立调用 ${summary.unmatchedCallCount}、孤立结果 ${summary.unmatchedResultCount}、重复事件 ${summary.duplicateEventIdCount}、循环父链 ${summary.cycleCount}、无效时间戳 ${summary.invalidTimestampCount}。${compatibilityIssue ? `有 ${summary.unsupportedEventCount} 个事件未被适配，过程证据可能缺失。` : '模型审核会进一步判断影响。'}`
     : '';
 }
 
@@ -260,6 +274,38 @@ function renderUserValidation(data) {
   if (data.evidence?.length) appendList(elements.userValidationContent, data.evidence);
 }
 
+function renderResultAssessment(data) {
+  const successful = data.status === '已证实成功';
+  const failed = data.status === '已证实失败';
+  elements.resultStatusBadge.textContent = data.status;
+  elements.resultStatusBadge.className = `status-pill ${successful ? 'status-good' : failed ? 'status-bad' : 'status-warn'}`;
+  clear(elements.resultAssessment);
+  elements.resultAssessment.append(create('p', '', data.reason));
+  if (data.evidence?.length) appendList(elements.resultAssessment, data.evidence);
+}
+
+function renderMajorFlaws(flaws, metadata) {
+  clear(elements.majorFlaws);
+  const definitions = new Map(metadata.dimensions.map((item) => [item.id, item.name]));
+  elements.majorFlawBadge.textContent = flaws?.length ? `${flaws.length} 项` : '未发现';
+  elements.majorFlawBadge.className = `status-pill ${flaws?.length ? 'status-bad' : 'status-good'}`;
+  if (!flaws?.length) {
+    elements.majorFlaws.append(create('p', 'empty-result', '没有识别到达到重大瑕疵门槛的问题。'));
+    return;
+  }
+  const list = create('div', 'claim-list');
+  for (const flaw of flaws) {
+    const item = create('div', 'claim-item major-flaw-item');
+    item.append(
+      create('strong', '', `${definitions.get(flaw.dimension) || flaw.dimension} · ${flaw.finding}`),
+      create('p', '', `影响：${flaw.impact}`)
+    );
+    if (flaw.evidence?.length) appendList(item, flaw.evidence, 'deduction-list');
+    list.append(item);
+  }
+  elements.majorFlaws.append(list);
+}
+
 function renderUnsupportedClaims(claims) {
   clear(elements.unsupportedClaims);
   if (!claims?.length) {
@@ -284,6 +330,7 @@ function renderFacts(summary, metadata) {
   clear(elements.traceFacts);
   const facts = [
     ['总行数', summary.totalLines.toLocaleString()],
+    ['轨迹格式', formatTraceFormat(summary.detectedFormat)],
     ['有效事件', summary.validEvents.toLocaleString()],
     ['无效行', summary.invalidLineCount],
     ['会话数', summary.sessionCount],
@@ -295,6 +342,13 @@ function renderFacts(summary, metadata) {
     ['缺失父事件', summary.missingParentCount],
     ['成功声明', summary.modelSuccessClaimCount],
     ['用户消息', summary.externalUserMessageCount],
+    ['工具失败', summary.toolErrorCount],
+    ['验证调用', summary.verificationCallCount],
+    ['验证失败', summary.verificationFailureCount],
+    ['重复命令', summary.repeatedCommandCount],
+    ['危险命令信号', summary.destructiveCommandSignalCount],
+    ['规划信号', summary.planningSignalCount],
+    ['状态反馈信号', summary.statusUpdateSignalCount],
     ['证据包片段', metadata.evidence_pack.included_sections],
     ['省略片段', metadata.evidence_pack.omitted_sections]
   ];
@@ -320,6 +374,8 @@ function renderReport(result) {
   elements.reportSummary.textContent = report.summary;
   elements.reportModel.textContent = `${metadata.model} · 推理强度 ${effortNames[metadata.effort] || metadata.effort}`;
   elements.reportTimestamp.textContent = `生成时间 ${new Date(metadata.analyzed_at).toLocaleString('zh-CN')}`;
+  renderResultAssessment(report.result_assessment);
+  renderMajorFlaws(report.major_flaws, metadata);
   renderDimensions(report, metadata);
   renderUserValidation(report.user_validation_assessment);
   renderUnsupportedClaims(report.unsupported_claims);
@@ -394,7 +450,7 @@ function downloadReport() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `trajectory-audit-${new Date().toISOString().slice(0, 10)}.json`;
+  link.download = `trajectory-quality-audit-${new Date().toISOString().slice(0, 10)}.json`;
   link.click();
   URL.revokeObjectURL(url);
 }

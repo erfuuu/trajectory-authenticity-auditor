@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light">
-  <title>TraceAudit · 轨迹真实性审核</title>
+  <title>TraceAudit · 轨迹结果与过程质量审核</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -12,7 +12,7 @@
     <div class="brand" aria-label="TraceAudit">
       <span class="brand-mark">TA</span>
       <span class="brand-name">TraceAudit</span>
-      <span class="brand-subtitle">轨迹真实性审核</span>
+      <span class="brand-subtitle">结果与过程质量审核</span>
     </div>
     <div class="topbar-actions">
       <span id="apiStatus" class="status-pill status-off">API 未配置</span>
@@ -89,7 +89,7 @@
       <section id="loadingSection" class="loading-section hidden" aria-live="polite">
         <div class="loading-bar"><span></span></div>
         <div>
-          <h2>正在进行证据审核</h2>
+          <h2>正在进行质量审核</h2>
           <p id="loadingText">正在整理结构指标与高价值证据片段...</p>
         </div>
       </section>
@@ -131,8 +131,31 @@
               <span id="verdictBadge" class="verdict-badge">待判定</span>
               <span id="reportModel"></span>
             </div>
-            <h1 id="reportTitle">轨迹真实性审核报告</h1>
+            <h1 id="reportTitle">轨迹结果与过程质量报告</h1>
             <p id="reportSummary"></p>
+          </div>
+        </section>
+
+        <section class="report-split">
+          <div class="report-block">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">结果正确性</p>
+                <h2>交付结果</h2>
+              </div>
+              <span id="resultStatusBadge" class="status-pill status-neutral">未判定</span>
+            </div>
+            <div id="resultAssessment"></div>
+          </div>
+          <div class="report-block">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">质量门槛</p>
+                <h2>重大瑕疵</h2>
+              </div>
+              <span id="majorFlawBadge" class="status-pill status-neutral">未判定</span>
+            </div>
+            <div id="majorFlaws"></div>
           </div>
         </section>
 
@@ -140,7 +163,7 @@
           <div class="section-heading compact">
             <div>
               <p class="eyebrow">加权评分</p>
-              <h2 id="dimensionTitle">分项结论</h2>
+              <h2 id="dimensionTitle">九维过程质量</h2>
             </div>
           </div>
           <div id="dimensionGrid" class="dimension-grid"></div>
