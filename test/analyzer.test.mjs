@@ -17,6 +17,11 @@ test('analyzes matching calls and user validation', () => {
   assert.equal(analysis.summary.toolResultCount, 1);
   assert.equal(analysis.summary.unmatchedCallCount, 0);
   assert.equal(analysis.summary.userValidationSignalCount, 1);
+  assert.equal(analysis.summary.promptCount, 2);
+  assert.deepEqual(analysis.prompts.map(({ round, ref, text }) => ({ round, ref, text })), [
+    { round: 1, ref: 'trace.jsonl:L1', text: '请实现功能' },
+    { round: 2, ref: 'trace.jsonl:L4', text: '我运行后发现页面报错' }
+  ]);
   assert.equal(analysis.summary.buildSignalCount, 1);
   assert.equal(analysis.summary.verificationCallCount, 1);
   assert.equal(analysis.summary.verificationResultCount, 1);
@@ -97,6 +102,8 @@ test('analyzes Codex CLI rollout response items', () => {
   assert.equal(analysis.summary.formatSupport, 'full');
   assert.equal(analysis.summary.sessionCount, 1);
   assert.equal(analysis.summary.externalUserMessageCount, 1);
+  assert.equal(analysis.summary.promptCount, 1);
+  assert.equal(analysis.prompts[0].text, '实现功能并运行测试');
   assert.equal(analysis.summary.toolCallCount, 1);
   assert.equal(analysis.summary.toolResultCount, 1);
   assert.equal(analysis.summary.verificationCallCount, 1);
@@ -118,6 +125,7 @@ test('analyzes Codex exec --json command lifecycle', () => {
   const trace = [
     { type: 'thread.started', thread_id: 'thread-1' },
     { type: 'turn.started' },
+    { type: 'item.completed', item: { id: 'prompt-1', type: 'user_message', text: '修复登录流程' } },
     { type: 'item.started', item: { id: 'item-1', type: 'command_execution', command: 'node --test', status: 'in_progress' } },
     { type: 'item.completed', item: { id: 'item-1', type: 'command_execution', command: 'node --test', aggregated_output: 'Tests run: 4 passed', exit_code: 0, status: 'completed' } },
     { type: 'item.completed', item: { id: 'item-2', type: 'file_change', changes: [{ path: 'lib/a.mjs', kind: 'update' }], status: 'completed' } },
@@ -126,7 +134,7 @@ test('analyzes Codex exec --json command lifecycle', () => {
   ];
   const analysis = analyzeFiles([{ name: 'codex-exec.jsonl', content: trace.map((event) => JSON.stringify(event)).join('\n') }]);
   assert.equal(analysis.summary.detectedFormat, 'codex_exec_json');
-  assert.equal(analysis.summary.validEvents, 7);
+  assert.equal(analysis.summary.validEvents, 8);
   assert.equal(analysis.summary.sessionCount, 1);
   assert.equal(analysis.summary.toolCallCount, 2);
   assert.equal(analysis.summary.toolResultCount, 2);
@@ -134,4 +142,6 @@ test('analyzes Codex exec --json command lifecycle', () => {
   assert.equal(analysis.summary.verificationCallCount, 1);
   assert.equal(analysis.summary.uniqueModifiedPaths, 1);
   assert.equal(analysis.summary.modelSuccessClaimCount, 1);
+  assert.equal(analysis.summary.promptCount, 1);
+  assert.equal(analysis.prompts[0].ref, 'codex-exec.jsonl:L3');
 });

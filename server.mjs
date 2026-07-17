@@ -77,11 +77,13 @@ function validateFiles(files) {
   }));
 }
 
-function publicSummary(analysis) {
-  return {
+function publicSummary(analysis, includePrompts = true) {
+  const summary = {
     ...analysis.summary,
     files: analysis.summary.files.map(({ name, bytes, lines, valid, sha256 }) => ({ name, bytes, lines, valid, sha256 }))
   };
+  if (includePrompts) summary.prompts = analysis.prompts;
+  return summary;
 }
 
 function extractOutputText(payload) {
@@ -283,7 +285,7 @@ async function handleAudit(req, res) {
     apiKey,
     model,
     effort,
-    summary: publicSummary(analysis),
+    summary: publicSummary(analysis, false),
     evidencePack: pack,
     signal: upstreamController.signal,
     baseUrl,

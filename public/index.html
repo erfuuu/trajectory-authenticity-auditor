@@ -27,14 +27,14 @@
           <p class="eyebrow">审核批次</p>
           <h1>轨迹文件</h1>
         </div>
-        <span id="fileCount" class="counter">0 / 1</span>
+        <span id="fileCount" class="counter">0 份</span>
       </div>
 
       <label id="dropZone" class="drop-zone" for="fileInput">
         <span class="drop-symbol">+</span>
         <strong>拖入 JSONL 文件</strong>
-        <span>或点击选择单个轨迹文件</span>
-        <input id="fileInput" type="file" accept=".jsonl,.json" hidden>
+        <span>或点击批量选择轨迹文件</span>
+        <input id="fileInput" type="file" accept=".jsonl,.json" multiple hidden>
       </label>
 
       <div id="fileList" class="file-list" aria-live="polite">
@@ -63,6 +63,7 @@
       <div class="control-actions">
         <button id="auditButton" class="button button-primary button-wide" type="button" disabled>开始机审</button>
         <button id="cancelButton" class="button button-secondary button-wide hidden" type="button">取消审核</button>
+        <button id="clearQueueButton" class="button button-secondary button-wide" type="button" disabled>清空队列</button>
       </div>
       <p class="privacy-note">API Key 仅保存在当前浏览器会话，并由本机服务转发。本工具不会把 Key 写入文件。</p>
     </aside>
@@ -78,12 +79,26 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">本地确定性检查</p>
-            <h2 id="preflightTitle">轨迹概览</h2>
+            <h2 id="preflightTitle">批次概览</h2>
           </div>
           <span id="preflightBadge" class="status-pill status-neutral">等待检查</span>
         </div>
         <div id="preflightMetrics" class="metric-grid"></div>
         <div id="preflightWarnings" class="warning-strip hidden"></div>
+      </section>
+
+      <section id="historySection" class="history-section hidden" aria-labelledby="historyTitle">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">本地记录</p>
+            <h2 id="historyTitle">历史机审结果</h2>
+          </div>
+          <div class="history-actions">
+            <span id="historyCount" class="counter">0 份</span>
+            <button id="clearHistoryButton" class="button button-secondary" type="button">清空历史</button>
+          </div>
+        </div>
+        <div id="historyList" class="history-list"></div>
       </section>
 
       <section id="loadingSection" class="loading-section hidden" aria-live="polite">
@@ -157,6 +172,17 @@
             </div>
             <div id="majorFlaws"></div>
           </div>
+        </section>
+
+        <section class="report-band prompt-band" aria-labelledby="promptTitle">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">输入轮次</p>
+              <h2 id="promptTitle">Prompt 记录</h2>
+            </div>
+            <span id="promptCountBadge" class="status-pill status-neutral">0 轮</span>
+          </div>
+          <div id="promptList" class="prompt-list"></div>
         </section>
 
         <section class="report-band" aria-labelledby="dimensionTitle">
